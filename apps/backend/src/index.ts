@@ -5,11 +5,11 @@ import { cookie } from "@elysiajs/cookie";
 import { prisma } from "../prisma/db";
 import { createOAuthClient, getAuthUrl } from "./auth";
 import { getCourses, getCourseWorks, getSubmissions } from "./classroom";
-import type { ApiResponse, HealthCheck, User } from "shared";
+import type { ApiResponse, HealthCheck } from "shared";
 import fs from "fs";
 import path from "path";
 
-// ✅ Tambahan fungsi (WAJIB)
+// ✅ Fungsi pendeteksi request dari browser langsung (tanpa fetch)
 const isBrowserRequest = (request: Request): boolean => {
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
@@ -23,13 +23,23 @@ const isBrowserRequest = (request: Request): boolean => {
 const tokenStore = new Map<string, { access_token: string; refresh_token?: string }>();
 
 const app = new Elysia()
-  // ✅ CORS dinamis
+  // ✅ CORS Dinamis: Mengizinkan Frontend Utama & Semua URL Preview Vercel
   .use(cors({
-    origin: [process.env.FRONTEND_URL ?? "", process.env.TEST_URL ?? ""],
-    credentials: true
+    origin: (request) => {
+      const origin = request.headers.get("origin");
+      const frontendUrl = process.env.FRONTEND_URL;
+      
+      // Izinkan jika origin cocok dengan env atau berasal dari domain vercel.app
+      if (!origin || origin === frontendUrl || origin.endsWith(".vercel.app")) {
+        return true;
+      }
+      return false;
+    },
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
   }))
 
-  // ✅ Middleware proteksi /users
+  // ✅ Middleware Proteksi /users
   .onRequest(({ request, set }) => {
     const url = new URL(request.url);
 
@@ -37,8 +47,10 @@ const app = new Elysia()
       const origin = request.headers.get("origin");
       const frontendUrl = process.env.FRONTEND_URL ?? "";
 
-      if (origin && origin === frontendUrl) return;
+      // 1. Izinkan jika request datang dari Frontend (via Fetch)
+      if (origin && (origin === frontendUrl || origin.endsWith(".vercel.app"))) return;
 
+      // 2. Jika diakses langsung via Browser (URL Bar), cek API_KEY
       if (isBrowserRequest(request)) {
         const key = url.searchParams.get("key");
 
@@ -59,7 +71,7 @@ const app = new Elysia()
     message: "server running",
   }))
 
-  // Users
+  // Users List
   .get("/users", async () => {
     const users = await prisma.user.findMany();
     return {
@@ -68,7 +80,7 @@ const app = new Elysia()
     };
   })
 
-  // --- AUTH ---
+  // --- AUTH ENTRIES ---
 
   .get("/auth/login", ({ redirect }) => {
     const oauth2Client = createOAuthClient();
@@ -93,12 +105,13 @@ const app = new Elysia()
       refresh_token: tokens.refresh_token ?? undefined,
     });
 
-    if (!session) return;
+    if (session) {
+        session.value = sessionId;
+        session.maxAge = 60 * 60 * 24;
+        session.path = "/";
+    }
 
-    session.value = sessionId;
-    session.maxAge = 60 * 60 * 24;
-
-    // ✅ dynamic URL
+    // ✅ Redirect kembali ke halaman Classroom di Frontend
     return redirect(`${process.env.FRONTEND_URL}/classroom`);
   })
 
@@ -121,7 +134,7 @@ const app = new Elysia()
     return { success: true };
   })
 
-  // --- CLASSROOM ---
+  // --- GOOGLE CLASSROOM API ---
 
   .get("/classroom/courses", async ({ cookie: { session }, set }) => {
     const sessionId = session?.value as string;
@@ -162,7 +175,7 @@ const app = new Elysia()
     return { data: result, message: "Course submissions retrieved" };
   })
 
-  // ✅ DEBUG PRISMA
+  // ✅ DEBUG PRISMA UNTUK VERCEL
   .get("/debug-prisma", () => {
     const generatedPath = path.resolve(__dirname, "../src/generated/prisma/client");
     const exists = fs.existsSync(generatedPath);
@@ -174,14 +187,12 @@ const app = new Elysia()
     };
   });
 
-// ✅ hanya jalan di local
+// ✅ Jalankan Server (Local Only)
 if (process.env.NODE_ENV !== "production") {
   app.listen(3000);
-  console.log(`🦊 Backend → http://localhost:3000`);
-  console.log(`🦊 TEST_URL: ${process.env.TEST_URL}`);
-  console.log(`🦊 DATABASE_URL: ${process.env.DATABASE_URL}`);
+  console.log(`🦊 Backend Running → http://localhost:3000`);
 }
 
-// ✅ WAJIB untuk Vercel
+// ✅ Export untuk Vercel
 export default app;
 export type App = typeof app;
