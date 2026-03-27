@@ -5,12 +5,12 @@ export function createOAuthClient() {
   // 🔍 DEBUG ENV (penting untuk cek error invalid_client)
   console.log("CLIENT_ID:", process.env.GOOGLE_CLIENT_ID);
   console.log("CLIENT_SECRET:", process.env.GOOGLE_CLIENT_SECRET);
-  console.log("REDIRECT_URI:", process.env.GOOGLE_REDIRECT_URI);
+  console.log("REDIRECT_URI:", process.env.GOOGLE_REDIRECT_URL);
 
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
+    process.env.GOOGLE_REDIRECT_URL
   );
 }
 
