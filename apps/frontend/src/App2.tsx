@@ -16,7 +16,6 @@ export default function App() {
   const [users, setUsers] = useState<User[]>([])
 
   const loadUsers = async () => {
-    // Bagian URL ini yang diubah
     const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/users`)
     const data: ApiResponse<User[]> = await res.json()
 
