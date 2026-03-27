@@ -105,10 +105,14 @@ const app = new Elysia()
       refresh_token: tokens.refresh_token ?? undefined,
     });
 
+    // ✅ PERBAIKAN: Konfigurasi Cookie untuk Vercel (Cross-Origin)
     if (session) {
         session.value = sessionId;
         session.maxAge = 60 * 60 * 24;
         session.path = "/";
+        session.sameSite = "none"; // Wajib untuk beda domain (Frontend Vercel ke Backend Vercel)
+        session.secure = true;     // Wajib karena Vercel menggunakan HTTPS
+        session.httpOnly = true;   // Keamanan tambahan agar tidak bisa dibaca JS Frontend
     }
 
     // ✅ Redirect kembali ke halaman Classroom di Frontend
